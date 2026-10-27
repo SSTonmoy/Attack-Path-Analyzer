@@ -14,11 +14,11 @@ to import ``run_analysis`` and verify that it returns the expected structure.
 from __future__ import annotations
 
 import pathlib
-from typing import Dict, List
+from typing import Dict
 
 from src.loader import load_json
 from src.graph_builder import build_graph
-from src.pathfinder import dijkstra, path_probability
+from src.pathfinder import dijkstra
 from src.risk import score_path
 from src.hardening import harden
 from src.segmentation import find_segments

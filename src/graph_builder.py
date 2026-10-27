@@ -2,8 +2,6 @@ import math
 import networkx as nx
 from typing import Dict
 
-from src.loader import load_json
-
 
 def build_graph(data: Dict) -> nx.DiGraph:
     """Convert the validated JSON dictionary into a weighted directed graph.

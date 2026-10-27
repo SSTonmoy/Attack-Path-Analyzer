@@ -17,8 +17,8 @@ from main import run_analysis
 
 
 def test_end_to_end_pipeline(tmp_path: pathlib.Path):
-    # Run the full pipeline.
-    results = run_analysis()
+    # Run the full pipeline writing to the isolated tmp_path directory.
+    results = run_analysis(output_dir=tmp_path)
 
     # Expected top‑level keys.
     expected_keys = {

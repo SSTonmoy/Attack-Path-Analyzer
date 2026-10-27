@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import csv
 import io
-import json
 import pathlib
 import random
 from typing import Any, Dict, List, Optional, Sequence
