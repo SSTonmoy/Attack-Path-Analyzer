@@ -13,7 +13,7 @@ Test catalogue
 5.  Union‑Find: ``union(a,b), union(b,c) → connected(a,c) is True``.
 6.  ``find_segments`` returns exactly the 4 expected segments.
 7.  Kruskal total weight equals ``nx.minimum_spanning_tree`` total weight.
-8.  ``harden()`` drops exactly 3 links, reducing probability from 0.504 to 0.09.
+8.  ``harden()`` drops exactly 3 redundant links while preserving the 0.504 backbone.
 9.  A ``required: true`` link is never in the dropped list.
 10. ``loader.py`` raises clear errors for bad JSON, missing fields, duplicate
     nodes.
