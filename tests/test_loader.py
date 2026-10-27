@@ -34,3 +34,24 @@ def test_load_invalid_probability():
         load_json(str(tmp_path))
     assert "probability 'p' must be in (0, 1]" in str(exc.value)
     tmp_path.unlink()
+
+
+def test_load_duplicate_edges(tmp_path: pathlib.Path):
+    """Verify that duplicate directed edges raise ValueError."""
+    import json
+    data = {
+        "nodes": [
+            {"id": "a", "zone": "z", "criticality": 1},
+            {"id": "b", "zone": "z", "criticality": 2},
+        ],
+        "edges": [
+            {"src": "a", "dst": "b", "p": 0.5, "required": False},
+            {"src": "a", "dst": "b", "p": 0.8, "required": True},
+        ],
+        "entry": "a",
+        "targets": ["b"],
+    }
+    p = tmp_path / "dup_edges.json"
+    p.write_text(json.dumps(data), encoding="utf-8")
+    with pytest.raises(ValueError, match="Duplicate directed edge"):
+        load_json(str(p))

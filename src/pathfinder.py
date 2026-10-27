@@ -105,17 +105,21 @@ def top_k_paths(
 
     The implementation relies on ``networkx.shortest_simple_paths`` (Yen's
     algorithm) which yields paths from lowest to highest weight.
+    Returns an empty list if k <= 0, nodes do not exist, or no path exists.
     """
-    if k <= 0:
+    if k <= 0 or source not in graph or target not in graph:
         return []
-    gen = nx.shortest_simple_paths(graph, source, target, weight="weight")
-    paths: List[List[str]] = []
-    for _ in range(k):
-        try:
-            paths.append(next(gen))
-        except StopIteration:
-            break
-    return paths
+    try:
+        gen = nx.shortest_simple_paths(graph, source, target, weight="weight")
+        paths: List[List[str]] = []
+        for _ in range(k):
+            try:
+                paths.append(next(gen))
+            except StopIteration:
+                break
+        return paths
+    except (nx.NetworkXNoPath, nx.NodeNotFound):
+        return []
 
 
 def path_probability(graph: nx.DiGraph, path: List[str]) -> float:

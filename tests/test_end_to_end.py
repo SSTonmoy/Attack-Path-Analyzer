@@ -42,3 +42,15 @@ def test_end_to_end_pipeline(tmp_path: pathlib.Path):
     # Optionally, verify that the report contains the risk band text.
     report_text = report_path.read_text(encoding="utf-8")
     assert "High" in report_text
+
+
+def test_draw_graph_extensionless(tmp_path: pathlib.Path):
+    """Verify that draw_graph handles an output path with no file extension."""
+    import networkx as nx
+    from src.visualize import draw_graph
+    G = nx.DiGraph()
+    G.add_edge("a", "b", weight=1.0, p=0.5)
+    out_file = tmp_path / "graph_no_ext"
+    draw_graph(G, str(out_file))
+    assert out_file.is_file()
+    assert out_file.stat().st_size > 0

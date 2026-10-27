@@ -36,8 +36,12 @@ def parse_csv_content(csv_input: str | pathlib.Path | io.StringIO) -> List[Dict[
 
     rows = []
     for r in reader:
-        # Strip whitespace from keys and values
-        clean_row = {k.strip(): v.strip() for k, v in r.items() if k is not None}
+        # Strip whitespace from keys and values; safely handle None values
+        clean_row = {
+            k.strip(): (v.strip() if v is not None else "")
+            for k, v in r.items()
+            if k is not None
+        }
         rows.append(clean_row)
     return rows
 

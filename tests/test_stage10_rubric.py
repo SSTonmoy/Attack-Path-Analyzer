@@ -88,6 +88,15 @@ def test_dijkstra_top4_probabilities(sample_graph):
         )
 
 
+def test_top_k_paths_unreachable_and_missing_nodes(sample_graph):
+    """top_k_paths must return an empty list when target is unreachable or missing."""
+    G = sample_graph
+    assert top_k_paths(G, "db01", "internet", k=3) == []
+    assert top_k_paths(G, "nonexistent", "db01", k=3) == []
+    assert top_k_paths(G, "internet", "nonexistent", k=3) == []
+    assert top_k_paths(G, "internet", "db01", k=0) == []
+
+
 # =====================================================================
 # 2. Dijkstra distances equal nx.dijkstra_path_length
 # =====================================================================

@@ -66,74 +66,78 @@ def draw_graph(
         style.
     """
     # Ensure the output directory exists.
-    pathlib.Path(out_path).parent.mkdir(parents=True, exist_ok=True)
+    out_p = pathlib.Path(out_path)
+    out_p.parent.mkdir(parents=True, exist_ok=True)
 
     pos = _prepare_layout(g)
 
     plt.figure(figsize=(8, 6))
-    ax = plt.gca()
-    ax.set_axis_off()
+    try:
+        ax = plt.gca()
+        ax.set_axis_off()
 
-    # Base drawing – all nodes and edges.
-    nx.draw_networkx_nodes(g, pos, node_color="lightblue", node_size=500, ax=ax)
-    nx.draw_networkx_labels(g, pos, font_size=9, ax=ax)
+        # Base drawing – all nodes and edges.
+        nx.draw_networkx_nodes(g, pos, node_color="lightblue", node_size=500, ax=ax)
+        nx.draw_networkx_labels(g, pos, font_size=9, ax=ax)
 
-    # Normal edges.
-    nx.draw_networkx_edges(
-        g,
-        pos,
-        edge_color="gray",
-        width=1.5,
-        arrows=True,
-        arrowstyle="->",
-        arrowsize=12,
-        ax=ax,
-    )
-
-    # Highlighted path – if supplied.
-    if highlight_path:
-        path_nodes = list(highlight_path)
-        # Draw path nodes with a distinct colour.
-        nx.draw_networkx_nodes(
-            g,
-            pos,
-            nodelist=path_nodes,
-            node_color="orange",
-            node_size=600,
-            ax=ax,
-        )
-        # Draw edges along the path.
-        path_edges = list(zip(path_nodes, path_nodes[1:]))
+        # Normal edges.
         nx.draw_networkx_edges(
             g,
             pos,
-            edgelist=path_edges,
-            edge_color="orange",
-            width=3,
-            arrows=True,
-            arrowstyle="->",
-            arrowsize=15,
-            ax=ax,
-        )
-
-    # Removed edges – drawn red and dashed.
-    if removed_edges:
-        nx.draw_networkx_edges(
-            g,
-            pos,
-            edgelist=list(removed_edges),
-            edge_color="red",
-            style="dashed",
-            width=2,
+            edge_color="gray",
+            width=1.5,
             arrows=True,
             arrowstyle="->",
             arrowsize=12,
             ax=ax,
         )
 
-    plt.tight_layout()
-    plt.savefig(out_path, format=pathlib.Path(out_path).suffix.lstrip("."))
-    plt.close()
+        # Highlighted path – if supplied.
+        if highlight_path:
+            path_nodes = list(highlight_path)
+            # Draw path nodes with a distinct colour.
+            nx.draw_networkx_nodes(
+                g,
+                pos,
+                nodelist=path_nodes,
+                node_color="orange",
+                node_size=600,
+                ax=ax,
+            )
+            # Draw edges along the path.
+            path_edges = list(zip(path_nodes, path_nodes[1:]))
+            nx.draw_networkx_edges(
+                g,
+                pos,
+                edgelist=path_edges,
+                edge_color="orange",
+                width=3,
+                arrows=True,
+                arrowstyle="->",
+                arrowsize=15,
+                ax=ax,
+            )
+
+        # Removed edges – drawn red and dashed.
+        if removed_edges:
+            nx.draw_networkx_edges(
+                g,
+                pos,
+                edgelist=list(removed_edges),
+                edge_color="red",
+                style="dashed",
+                width=2,
+                arrows=True,
+                arrowstyle="->",
+                arrowsize=12,
+                ax=ax,
+            )
+
+        plt.tight_layout()
+        fmt = out_p.suffix.lstrip(".").lower() or "png"
+        plt.savefig(out_path, format=fmt)
+    finally:
+        plt.close()
 
 
 __all__ = ["draw_graph"]

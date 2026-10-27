@@ -49,8 +49,8 @@ def score_path(graph: nx.DiGraph, path: List[str]) -> Dict[str, float | str]:
     ----------
     graph:
         A directed ``networkx`` graph where each node may have a ``criticality``
-        attribute (numeric) and each edge stores an ``exploit_prob`` attribute
-        (float in ``[0, 1]``).
+        attribute (numeric) and each edge stores a ``p`` probability attribute
+        (float in ``(0, 1]``).
     path:
         Ordered list of node identifiers representing the attacker’s route.
 
@@ -58,7 +58,7 @@ def score_path(graph: nx.DiGraph, path: List[str]) -> Dict[str, float | str]:
     -------
     dict
         ``{"prob": float, "criticality": float, "score": float, "band": str}``
-        where ``prob`` is the product of the edge ``exploit_prob`` values, the
+        where ``prob`` is the product of the edge ``p`` probability values, the
         ``criticality`` is taken from the *target* node (the last element of the
         path), ``score`` is ``prob * criticality`` and ``band`` is a textual
         risk band.

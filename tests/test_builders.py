@@ -82,6 +82,19 @@ n1,n2
         csv_to_network_dict(bad_nodes_csv, bad_edges_csv)
 
 
+def test_parse_csv_content_ragged_rows():
+    """Verify that rows with fewer columns than the header do not crash with AttributeError."""
+    from src.builders import parse_csv_content
+    import io
+    ragged_csv = "id,zone,criticality\nnode1,dmz\nnode2,internal,5\n"
+    rows = parse_csv_content(io.StringIO(ragged_csv))
+    assert len(rows) == 2
+    assert rows[0]["id"] == "node1"
+    assert rows[0]["zone"] == "dmz"
+    assert rows[0]["criticality"] == ""
+    assert rows[1]["criticality"] == "5"
+
+
 def test_generate_random_network_valid_and_passes_loader():
     """Verify that random networks always pass schema validation and can find attack paths."""
     net_dict = generate_random_network(num_nodes=8, edge_density=0.4, seed=42)

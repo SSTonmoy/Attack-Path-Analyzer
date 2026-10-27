@@ -43,9 +43,11 @@ def _validate_edges(edges: list, node_ids: set) -> None:
 
     * Each edge must contain ``src``, ``dst``, ``p`` and ``required``.
     * ``src`` and ``dst`` must reference existing node ids.
+    * ``(src, dst)`` directed pairs must be unique.
     * ``p`` must be a number strictly greater than 0 and at most 1.
     * ``required`` must be a boolean.
     """
+    seen_edges = set()
     for idx, edge in enumerate(edges):
         if not isinstance(edge, dict):
             _error(f"Edge at index {idx} is not an object.")
@@ -57,6 +59,9 @@ def _validate_edges(edges: list, node_ids: set) -> None:
             _error(f"Edge {idx}: source node '{src}' does not exist.")
         if dst not in node_ids:
             _error(f"Edge {idx}: destination node '{dst}' does not exist.")
+        if (src, dst) in seen_edges:
+            _error(f"Duplicate directed edge '{src}' -> '{dst}' at index {idx}.")
+        seen_edges.add((src, dst))
         p = edge["p"]
         if not isinstance(p, (int, float)):
             _error(f"Edge {idx}: probability 'p' must be a number.")

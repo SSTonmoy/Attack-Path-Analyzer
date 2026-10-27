@@ -20,6 +20,7 @@ path compression and union‑by‑rank for near‑constant‑time operations.
 
 from __future__ import annotations
 
+from collections import deque
 from typing import Dict, Set, List, Tuple
 
 import networkx as nx
@@ -106,9 +107,10 @@ def find_segments(g: nx.DiGraph) -> Dict[int, Set[str]]:
         root = uf.find(node)
         root_to_nodes.setdefault(root, set()).add(node)
 
-    # Convert the arbitrary root keys to stable integer IDs.
+    # Convert the arbitrary root keys to stable integer IDs sorted by component contents.
+    sorted_components = sorted(root_to_nodes.values(), key=lambda s: sorted(s)[0] if s else "")
     segments: Dict[int, Set[str]] = {}
-    for idx, nodes in enumerate(root_to_nodes.values()):
+    for idx, nodes in enumerate(sorted_components):
         segments[idx] = nodes
 
     return segments
@@ -130,9 +132,9 @@ def blast_radius(g: nx.DiGraph, entry: str) -> Set[str]:
     if entry not in g:
         return set()
     visited: Set[str] = {entry}
-    queue: List[str] = [entry]
+    queue: deque[str] = deque([entry])
     while queue:
-        cur = queue.pop(0)
+        cur = queue.popleft()
         for neighbor in g.successors(cur):
             if neighbor not in visited:
                 visited.add(neighbor)

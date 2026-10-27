@@ -30,29 +30,38 @@ the Python standard library and ``networkx`` (which is already used elsewhere).
 from __future__ import annotations
 
 import pathlib
-from typing import Any, Mapping, Sequence
+from typing import Any, Mapping, Sequence, Set
 
 
 def _format_value(value: Any, indent: int = 0) -> str:
     """Return a Markdown representation of *value* with *indent* spaces.
 
-    This helper is recursive so that nested dictionaries/lists are rendered as
-    indented bullet lists.
+    Handles nested mappings, sequences, sets, edge tuples, and scalar values cleanly.
     """
     prefix = " " * indent + "- "
     if isinstance(value, Mapping):
         lines = []
         for k, v in value.items():
-            lines.append(f"{prefix}{k}:")
-            lines.append(_format_value(v, indent + 2))
+            if isinstance(v, (Mapping, Sequence, set, frozenset)) and not isinstance(v, (str, bytes)):
+                lines.append(f"{prefix}**{k}**:")
+                lines.append(_format_value(v, indent + 2))
+            else:
+                lines.append(f"{prefix}**{k}**: {v}")
         return "\n".join(lines)
-    if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+    if isinstance(value, (set, frozenset)):
+        nodes = sorted(str(x) for x in value)
+        return f"{prefix}" + ", ".join(f"`{n}`" for n in nodes)
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
         lines = []
         for item in value:
-            lines.append(f"{prefix}{_format_value(item, indent + 2).lstrip()}".strip())
+            if isinstance(item, (tuple, list)) and len(item) == 2 and all(isinstance(x, (str, int)) for x in item):
+                lines.append(f"{prefix}`{item[0]}` ➔ `{item[1]}`")
+            elif isinstance(item, (Mapping, Sequence, set, frozenset)) and not isinstance(item, (str, bytes)):
+                lines.append(_format_value(item, indent))
+            else:
+                lines.append(f"{prefix}{item}")
         return "\n".join(lines)
-    # Fallback – use ``repr`` for deterministic output.
-    return f"{prefix}{repr(value)}"
+    return f"{prefix}{value}"
 
 
 def build_report(results: dict, out_path: str) -> None:
