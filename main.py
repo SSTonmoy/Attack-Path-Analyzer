@@ -26,8 +26,19 @@ from src.visualize import draw_graph
 from src.report import build_report
 
 
-def run_analysis() -> Dict:
+def run_analysis(
+    input_path: str | pathlib.Path | None = None,
+    output_dir: str | pathlib.Path | None = None,
+) -> Dict:
     """Execute the complete attack‑path analysis pipeline.
+
+    Parameters
+    ----------
+    input_path: str | Path | None
+        Path to the input JSON file. Defaults to data/sample_small.json.
+    output_dir: str | Path | None
+        Path to the directory where reports and images are written.
+        Defaults to output/.
 
     Returns
     -------
@@ -40,7 +51,10 @@ def run_analysis() -> Dict:
     # ------------------------------------------------------------
     # 1️⃣ Load data and build the directed graph.
     # ------------------------------------------------------------
-    data_path = pathlib.Path(__file__).parent / "data" / "sample_small.json"
+    if input_path is None:
+        data_path = pathlib.Path(__file__).parent / "data" / "sample_small.json"
+    else:
+        data_path = pathlib.Path(input_path)
     data = load_json(str(data_path))
     G = build_graph(data)
 
@@ -71,10 +85,13 @@ def run_analysis() -> Dict:
     # ------------------------------------------------------------
     # 6️⃣ Produce artefacts – a report and a visualisation.
     # ------------------------------------------------------------
-    output_dir = pathlib.Path(__file__).parent / "output"
-    output_dir.mkdir(parents=True, exist_ok=True)
+    if output_dir is None:
+        out_dir = pathlib.Path(__file__).parent / "output"
+    else:
+        out_dir = pathlib.Path(output_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
 
-    report_path = output_dir / "report.md"
+    report_path = out_dir / "report.md"
     build_report(
         {
             "risk_summary": risk_result,
@@ -84,7 +101,7 @@ def run_analysis() -> Dict:
         str(report_path),
     )
 
-    graph_path = output_dir / "graph.png"
+    graph_path = out_dir / "graph.png"
     draw_graph(
         G,
         out_path=str(graph_path),
@@ -105,7 +122,13 @@ def run_analysis() -> Dict:
 
 
 if __name__ == "__main__":
-    results = run_analysis()
+    import argparse
+    parser = argparse.ArgumentParser(description="Attack Path Analyzer")
+    parser.add_argument("--input", default="data/sample_small.json", help="Input JSON file")
+    parser.add_argument("--out", default="output", help="Output directory")
+    args = parser.parse_args()
+
+    results = run_analysis(input_path=args.input, output_dir=args.out)
     print("Analysis complete. Summary:")
     print(f"  Risk band: {results['risk']['band']}")
     print(f"  Report written to: {results['report_path']}")

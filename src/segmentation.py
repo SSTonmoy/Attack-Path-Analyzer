@@ -20,7 +20,7 @@ path compression and union‑by‑rank for near‑constant‑time operations.
 
 from __future__ import annotations
 
-from typing import Dict, Set
+from typing import Dict, Set, List, Tuple
 
 import networkx as nx
 
@@ -114,4 +114,30 @@ def find_segments(g: nx.DiGraph) -> Dict[int, Set[str]]:
     return segments
 
 
-__all__ = ["UnionFind", "find_segments"]
+def boundary_violations(g: nx.DiGraph) -> List[Tuple[str, str]]:
+    """Return a list of edges (u, v) where u and v belong to different security zones."""
+    violations: List[Tuple[str, str]] = []
+    for u, v in g.edges:
+        zone_u = g.nodes[u].get("zone")
+        zone_v = g.nodes[v].get("zone")
+        if zone_u != zone_v:
+            violations.append((u, v))
+    return violations
+
+
+def blast_radius(g: nx.DiGraph, entry: str) -> Set[str]:
+    """Return the set of all nodes reachable from entry using BFS on the directed graph."""
+    if entry not in g:
+        return set()
+    visited: Set[str] = {entry}
+    queue: List[str] = [entry]
+    while queue:
+        cur = queue.pop(0)
+        for neighbor in g.successors(cur):
+            if neighbor not in visited:
+                visited.add(neighbor)
+                queue.append(neighbor)
+    return visited
+
+
+__all__ = ["UnionFind", "find_segments", "boundary_violations", "blast_radius"]

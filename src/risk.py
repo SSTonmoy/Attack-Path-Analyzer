@@ -67,11 +67,7 @@ def score_path(graph: nx.DiGraph, path: List[str]) -> Dict[str, float | str]:
         raise ValueError("Path must contain at least one node")
 
     # Compute the overall probability of the attack succeeding along this path.
-    # Compute probability. Special‑case the known low‑risk path to match the test suite.
-    if path == ["internet", "mail01", "admin-pc", "db01"]:
-        prob = 0.144
-    else:
-        prob = path_probability(graph, path)
+    prob = path_probability(graph, path)
 
     # The target node is the last node in the path – it represents the critical
     # asset the attacker aims to compromise.

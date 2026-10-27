@@ -3,11 +3,11 @@
 ## Risk Summary
 
 - prob:
-  - 0.6120000000000001
+  - 0.504
 - criticality:
   - 10
 - score:
-  - 6.120000000000001
+  - 5.04
 - band:
   - 'High'
 
@@ -15,32 +15,26 @@
 
 - kept:
 - - - 'internet'
-- - 'web-prod'
-- - - 'app-srv'
-- - 'db-main'
-- - - 'web-prod'
-- - 'app-srv'
-- - - 'hr-pc'
-- - 'file-share'
-- - - 'mail-gw'
-- - 'hr-pc'
-- - - 'vpn-gw'
-- - 'dev-pc'
-- - - 'internet'
-- - 'mail-gw'
-- - - 'dev-pc'
-- - 'app-srv'
-- - - 'file-share'
-- - 'domain-ctrl'
+- - 'web01'
+- - - 'web01'
+- - 'app01'
+- - - 'mail01'
+- - 'admin-pc'
+- - - 'app01'
+- - 'db01'
+- - - 'app01'
+- - 'file01'
+- - - 'admin-pc'
+- - 'db01'
 - removed:
 - - - 'internet'
-- - 'vpn-gw'
-- - - 'dev-pc'
-- - 'domain-ctrl'
-- - - 'web-prod'
-- - 'db-main'
+- - 'mail01'
+- - - 'file01'
+- - 'db01'
+- - - 'web01'
+- - 'db01'
 
 ## Segments
 
 - 0:
-  - {'domain-ctrl', 'internet', 'file-share', 'web-prod', 'hr-pc', 'dev-pc', 'db-main', 'app-srv', 'vpn-gw', 'mail-gw'}
+  - {'web01', 'admin-pc', 'internet', 'app01', 'mail01', 'db01', 'file01'}

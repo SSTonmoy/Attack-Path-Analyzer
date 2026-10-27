@@ -1,33 +1,24 @@
 {
   "nodes": [
     {"id": "internet", "zone": "internet", "criticality": 0},
-    {"id": "web-prod", "zone": "dmz", "criticality": 4},
-    {"id": "mail-gw", "zone": "dmz", "criticality": 3},
-    {"id": "vpn-gw", "zone": "dmz", "criticality": 5},
-    {"id": "hr-pc", "zone": "office", "criticality": 2},
-    {"id": "dev-pc", "zone": "office", "criticality": 6},
-    {"id": "app-srv", "zone": "servers", "criticality": 7},
-    {"id": "file-share", "zone": "servers", "criticality": 5},
-    {"id": "domain-ctrl", "zone": "admin", "criticality": 10},
-    {"id": "db-main", "zone": "admin", "criticality": 10}
+    {"id": "web01", "zone": "dmz", "criticality": 3},
+    {"id": "mail01", "zone": "dmz", "criticality": 3},
+    {"id": "app01", "zone": "internal", "criticality": 5},
+    {"id": "file01", "zone": "internal", "criticality": 4},
+    {"id": "admin-pc", "zone": "internal", "criticality": 6},
+    {"id": "db01", "zone": "internal", "criticality": 10}
   ],
   "edges": [
-    {"src": "internet", "dst": "web-prod", "vuln": "Port 443 open", "p": 0.9, "required": true},
-    {"src": "internet", "dst": "mail-gw", "vuln": "Phishing payload", "p": 0.5, "required": true},
-    {"src": "internet", "dst": "vpn-gw", "vuln": "Credential stuffing", "p": 0.3, "required": true},
-    {"src": "web-prod", "dst": "app-srv", "vuln": "API logic flaw", "p": 0.8, "required": true},
-    {"src": "web-prod", "dst": "db-main", "vuln": "Firewall misconfig", "p": 0.1, "required": false},
-    {"src": "mail-gw", "dst": "hr-pc", "vuln": "Macro execution", "p": 0.7, "required": false},
-    {"src": "vpn-gw", "dst": "dev-pc", "vuln": "Weak MFA", "p": 0.6, "required": true},
-    {"src": "hr-pc", "dst": "file-share", "vuln": "SMB access", "p": 0.8, "required": true},
-    {"src": "dev-pc", "dst": "app-srv", "vuln": "SSH key reuse", "p": 0.5, "required": false},
-    {"src": "dev-pc", "dst": "domain-ctrl", "vuln": "Kerberoasting", "p": 0.3, "required": false},
-    {"src": "app-srv", "dst": "db-main", "vuln": "SQL Injection", "p": 0.85, "required": true},
-    {"src": "file-share", "dst": "domain-ctrl", "vuln": "NTLM Relay", "p": 0.4, "required": false}
+    {"src": "internet", "dst": "web01", "vuln": "path traversal", "p": 0.9, "required": true},
+    {"src": "internet", "dst": "mail01", "vuln": "phishing", "p": 0.5, "required": false},
+    {"src": "web01", "dst": "app01", "vuln": "sql injection", "p": 0.8, "required": true},
+    {"src": "web01", "dst": "db01", "vuln": "remote code exec", "p": 0.1, "required": false},
+    {"src": "mail01", "dst": "admin-pc", "vuln": "attachment exploit", "p": 0.7, "required": false},
+    {"src": "app01", "dst": "db01", "vuln": "privilege escalation", "p": 0.7, "required": false},
+    {"src": "app01", "dst": "file01", "vuln": "lateral movement", "p": 0.7, "required": false},
+    {"src": "file01", "dst": "db01", "vuln": "credential theft", "p": 0.3, "required": false},
+    {"src": "admin-pc", "dst": "db01", "vuln": "admin exploit", "p": 0.6, "required": false}
   ],
   "entry": "internet",
-  "targets": [
-    "db-main",
-    "domain-ctrl"
-  ]
+  "targets": ["db01"]
 }

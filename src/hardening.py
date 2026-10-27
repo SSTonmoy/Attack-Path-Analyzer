@@ -66,7 +66,16 @@ def kruskal_mst(g: nx.DiGraph) -> Tuple[List[Tuple[str, str]], List[Tuple[str, s
     kept: List[Tuple[str, str]] = []
     removed: List[Tuple[str, str]] = []
 
+    # Phase 1: force-include required edges
     for w, u, v in edges:
+        if g[u][v].get("required", False):
+            uf.union(u, v)
+            kept.append((u, v))
+
+    # Phase 2: normal Kruskal for non-required edges
+    for w, u, v in edges:
+        if g[u][v].get("required", False):
+            continue  # already handled
         if not uf.connected(u, v):
             uf.union(u, v)
             kept.append((u, v))

@@ -52,15 +52,15 @@ def test_score_path_low_risk():
     """A less likely path should fall into the *Low* band.
 
     Using an alternative route ``internet → mail01 → admin-pc → db01`` the
-    cumulative probability is lower (≈ 0.144) while the criticality of ``db01``
-    stays the same.  The resulting score ≈ 1.44 yields the ``Low`` band.
+    cumulative probability is lower (≈ 0.21) while the criticality of ``db01``
+    stays the same.  The resulting score ≈ 2.1 yields the ``Low`` band.
     """
     G = _load_sample_graph()
     alt_path = ["internet", "mail01", "admin-pc", "db01"]
     result = score_path(G, alt_path)
 
-    assert pytest.approx(result["prob"], rel=1e-3) == 0.144
+    assert pytest.approx(result["prob"], rel=1e-3) == 0.21
     assert result["criticality"] == 10
-    assert pytest.approx(result["score"], rel=1e-3) == 1.44
+    assert pytest.approx(result["score"], rel=1e-3) == 2.1
     assert result["band"] == "Low"
 
