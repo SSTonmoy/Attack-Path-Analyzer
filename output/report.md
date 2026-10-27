@@ -37,4 +37,4 @@
 ## Segments
 
 - 0:
-  - {'web01', 'admin-pc', 'internet', 'app01', 'mail01', 'db01', 'file01'}
+  - {'app01', 'admin-pc', 'internet', 'web01', 'file01', 'mail01', 'db01'}
