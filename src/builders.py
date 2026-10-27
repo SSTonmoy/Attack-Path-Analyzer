@@ -19,26 +19,28 @@ from typing import Any, Dict, List, Optional, Sequence
 def parse_csv_content(csv_input: str | pathlib.Path | io.StringIO) -> List[Dict[str, str]]:
     """Parse CSV text, file path, or StringIO into a list of row dictionaries."""
     if isinstance(csv_input, pathlib.Path):
-        text = csv_input.read_text(encoding="utf-8")
-        reader = csv.DictReader(io.StringIO(text))
+        text = csv_input.read_text(encoding="utf-8-sig")
+        reader = csv.DictReader(io.StringIO(text.lstrip("\ufeff")))
     elif isinstance(csv_input, str):
         # Check if it is a path string or raw CSV string
         p = pathlib.Path(csv_input)
         if p.exists() and p.is_file():
-            text = p.read_text(encoding="utf-8")
-            reader = csv.DictReader(io.StringIO(text))
+            text = p.read_text(encoding="utf-8-sig")
+            reader = csv.DictReader(io.StringIO(text.lstrip("\ufeff")))
         else:
-            reader = csv.DictReader(io.StringIO(csv_input))
+            reader = csv.DictReader(io.StringIO(csv_input.lstrip("\ufeff")))
     elif isinstance(csv_input, io.StringIO):
-        reader = csv.DictReader(csv_input)
+        # Extract string value and strip potential leading BOM
+        content = csv_input.getvalue().lstrip("\ufeff")
+        reader = csv.DictReader(io.StringIO(content))
     else:
         reader = csv.DictReader(csv_input)
 
     rows = []
     for r in reader:
-        # Strip whitespace from keys and values; safely handle None values
+        # Strip whitespace and any leading BOM from keys and values; safely handle None values
         clean_row = {
-            k.strip(): (v.strip() if v is not None else "")
+            k.strip().lstrip("\ufeff"): (v.strip() if v is not None else "")
             for k, v in r.items()
             if k is not None
         }

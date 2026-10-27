@@ -4,16 +4,18 @@ import networkx as nx
 
 
 def dijkstra(
-    graph: nx.DiGraph, source: str, **kwargs
+    graph: nx.DiGraph, source: str, target: str | None = None, **kwargs
 ) -> Tuple[Dict[str, float], Dict[str, str | None]] | List[str]:
     """Hand‑written Dijkstra's algorithm.
 
-    If a ``target`` keyword argument is supplied, the function returns the
-    reconstructed shortest path (list of node identifiers) instead of the
-    ``(dist, prev)`` tuple. This matches the test suite's usage where
-    ``dijkstra(G, source="internet", target="db01")`` is expected to yield a
-    path list.
+    If ``target`` is supplied, the function returns the reconstructed
+    shortest path (list of node identifiers) instead of the ``(dist, prev)``
+    tuple. This matches INTERFACES.md and the test suite's usage where
+    ``dijkstra(G, source="internet", target="db01")`` yields a path list.
     """
+    if source not in graph:
+        raise ValueError(f"Source node '{source}' not in graph")
+
     # Initialise distances and predecessor map
     dist: Dict[str, float] = {n: float("inf") for n in graph.nodes}
     prev: Dict[str, str | None] = {n: None for n in graph.nodes}
@@ -38,7 +40,7 @@ def dijkstra(
                 heapq.heappush(heap, (alt, v))
 
     # If a target was supplied, reconstruct and return the path.
-    target = kwargs.get("target")
+    target = target or kwargs.get("target")
     if target is not None:
         path = reconstruct_path(prev, source, target)
         if path is None:
@@ -78,6 +80,9 @@ def bellman_ford(
     Returns the same ``dist`` and ``prev`` structures as ``dijkstra``.
     Raises ``ValueError`` if a reachable negative‑weight cycle exists.
     """
+    if source not in graph:
+        raise ValueError(f"Source node '{source}' not in graph")
+
     dist: Dict[str, float] = {n: float("inf") for n in graph.nodes}
     prev: Dict[str, str | None] = {n: None for n in graph.nodes}
     dist[source] = 0.0
@@ -131,5 +136,7 @@ def path_probability(graph: nx.DiGraph, path: List[str]) -> float:
         return 1.0
     prob = 1.0
     for src, dst in zip(path, path[1:]):
+        if not graph.has_edge(src, dst):
+            raise ValueError(f"No edge in graph from '{src}' to '{dst}'")
         prob *= graph[src][dst]["p"]
     return prob

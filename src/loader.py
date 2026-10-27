@@ -32,7 +32,7 @@ def _validate_nodes(nodes: list) -> Dict[str, Dict[str, Any]]:
         if nid in node_map:
             _error(f"Duplicate node id '{nid}'.")
         crit = node["criticality"]
-        if not isinstance(crit, int) or not (0 <= crit <= 10):
+        if isinstance(crit, bool) or not isinstance(crit, int) or not (0 <= crit <= 10):
             _error(f"Node '{nid}': criticality must be an integer in [0,10].")
         node_map[nid] = node
     return node_map
@@ -63,7 +63,7 @@ def _validate_edges(edges: list, node_ids: set) -> None:
             _error(f"Duplicate directed edge '{src}' -> '{dst}' at index {idx}.")
         seen_edges.add((src, dst))
         p = edge["p"]
-        if not isinstance(p, (int, float)):
+        if isinstance(p, bool) or not isinstance(p, (int, float)):
             _error(f"Edge {idx}: probability 'p' must be a number.")
         if not (0 < p <= 1):
             _error(f"Edge {idx}: probability 'p' must be in (0, 1]. Got {p}.")
@@ -149,7 +149,7 @@ def load_json(path: str) -> dict:
     if not p.is_file():
         _error(f"File not found: {path}")
     try:
-        data = json.loads(p.read_text(encoding="utf-8"))
+        data = json.loads(p.read_text(encoding="utf-8-sig"))
     except json.JSONDecodeError as exc:
         _error(f"Invalid JSON syntax: {exc.msg}")
 

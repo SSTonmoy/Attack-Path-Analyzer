@@ -15,7 +15,7 @@ import pytest
 # Import the helper functions from the package under test.
 from src.loader import load_json
 from src.graph_builder import build_graph
-from src.pathfinder import dijkstra, path_probability
+from src.pathfinder import dijkstra
 from src.risk import score_path
 
 # Helper to load the sample graph used across tests.

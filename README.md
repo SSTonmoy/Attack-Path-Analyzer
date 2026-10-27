@@ -175,7 +175,7 @@ The web dashboard is organized into four intuitive tabs:
 
 ### 3. 📄 CSV Import
 - Import topologies by uploading `nodes.csv` and `edges.csv`.
-- Full support for UTF-8 Byte Order Marks (`utf-8-sig`) exported from Microsoft Excel.
+- Full support for UTF-8 Byte Order Marks (`utf-8-sig`) exported from Microsoft Excel or saved via Windows Notepad across both CSV and JSON loaders.
 - Auto-detects entry points and targets with data preview tables.
 
 ### 4. 🎲 Random Network Generator
@@ -192,7 +192,7 @@ Run all unit, integration, UI smoke, rubric, and builder tests with pytest:
 .\.venv\Scripts\python.exe -m pytest -v
 ```
 
-All **39 automated tests** verify:
+All **51 automated tests** verify:
 - Dijkstra top-path probabilities & NetworkX mathematical equivalence
 - Bellman-Ford distances and negative cycle detection
 - Disjoint-set Union-Find connectivity, transitivity, and segmentation
@@ -203,3 +203,9 @@ All **39 automated tests** verify:
 - CSV conversion with BOM support and ragged row handling
 - Streamlit AppTest smoke tests and cell sanitization helpers
 - Matplotlib headless rendering and extensionless file paths
+- UTF-8 BOM encoding tolerance across JSON and CSV inputs
+- Strict boolean validation in loader schema (prevents booleans as ints/floats)
+- Non-existent node handling in Dijkstra and Bellman-Ford
+- Invalid edge handling in path_probability
+- Missing node filtering in visualization removed_edges
+- CLI subprocess invocation with positional and flag arguments

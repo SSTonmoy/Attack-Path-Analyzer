@@ -21,9 +21,7 @@ Test catalogue
 
 from __future__ import annotations
 
-import copy
 import json
-import math
 import pathlib
 import tempfile
 from typing import List
@@ -40,7 +38,6 @@ from src.pathfinder import (
     path_probability,
     top_k_paths,
 )
-from src.risk import score_path
 from src.segmentation import UnionFind, find_segments
 from src.hardening import kruskal_mst, harden
 

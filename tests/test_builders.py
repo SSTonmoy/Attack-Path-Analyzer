@@ -132,3 +132,42 @@ def test_generate_random_network_deterministic_seed():
 
     # Different seed produces different edge probabilities or edges
     assert net_seed_42_a != net_seed_99
+
+
+def test_csv_with_bom_text_and_file(tmp_path: pathlib.Path):
+    """Verify that CSV files or strings with Excel UTF-8 BOM are correctly parsed."""
+    nodes_bom = "\ufeffid,zone,criticality\ninternet,internet,0\ndb01,internal,10\n"
+    edges_bom = "\ufeffsrc,dst,p,required,vuln\ninternet,db01,0.75,true,cve-123\n"
+    
+    # 1. String with BOM
+    net_dict = csv_to_network_dict(nodes_bom, edges_bom)
+    assert net_dict["entry"] == "internet"
+    assert net_dict["targets"] == ["db01"]
+    assert net_dict["edges"][0]["vuln"] == "cve-123"
+
+    # 2. Files with BOM bytes
+    nodes_f = tmp_path / "nodes_bom.csv"
+    edges_f = tmp_path / "edges_bom.csv"
+    nodes_f.write_bytes(b"\xef\xbb\xbfid,zone,criticality\ninternet,internet,0\ndb01,internal,10\n")
+    edges_f.write_bytes(b"\xef\xbb\xbfsrc,dst,p,required,vuln\ninternet,db01,0.75,true,cve-123\n")
+
+    net_dict_f = csv_to_network_dict(nodes_f, edges_f)
+    assert net_dict_f["entry"] == "internet"
+    assert net_dict_f["targets"] == ["db01"]
+
+
+def test_build_graph_preserves_vuln():
+    """Verify that build_graph retains the optional vuln attribute on edges."""
+    net_data = {
+        "nodes": [
+            {"id": "a", "zone": "z", "criticality": 0},
+            {"id": "b", "zone": "z", "criticality": 5},
+        ],
+        "edges": [
+            {"src": "a", "dst": "b", "p": 0.8, "required": True, "vuln": "CVE-2024-9999"}
+        ],
+        "entry": "a",
+        "targets": ["b"],
+    }
+    G = build_graph(net_data)
+    assert G["a"]["b"].get("vuln") == "CVE-2024-9999"

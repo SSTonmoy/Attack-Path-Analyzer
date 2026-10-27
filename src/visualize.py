@@ -23,7 +23,7 @@ NetworkX's spring layout for reproducibility.
 from __future__ import annotations
 
 import pathlib
-from typing import Iterable, List, Tuple, Optional
+from typing import Iterable, Tuple, Optional
 
 import matplotlib
 
@@ -118,20 +118,25 @@ def draw_graph(
                 ax=ax,
             )
 
-        # Removed edges – drawn red and dashed.
+        # Removed edges – drawn red and dashed (safely filtered for node presence in pos).
         if removed_edges:
-            nx.draw_networkx_edges(
-                g,
-                pos,
-                edgelist=list(removed_edges),
-                edge_color="red",
-                style="dashed",
-                width=2,
-                arrows=True,
-                arrowstyle="->",
-                arrowsize=12,
-                ax=ax,
-            )
+            safe_removed = [
+                (u, v) for u, v in removed_edges
+                if u in pos and v in pos
+            ]
+            if safe_removed:
+                nx.draw_networkx_edges(
+                    g,
+                    pos,
+                    edgelist=safe_removed,
+                    edge_color="red",
+                    style="dashed",
+                    width=2,
+                    arrows=True,
+                    arrowstyle="->",
+                    arrowsize=12,
+                    ax=ax,
+                )
 
         plt.tight_layout()
         fmt = out_p.suffix.lstrip(".").lower() or "png"

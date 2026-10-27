@@ -30,7 +30,7 @@ the Python standard library and ``networkx`` (which is already used elsewhere).
 from __future__ import annotations
 
 import pathlib
-from typing import Any, Mapping, Sequence, Set
+from typing import Any, Mapping, Sequence
 
 
 def _format_value(value: Any, indent: int = 0) -> str:

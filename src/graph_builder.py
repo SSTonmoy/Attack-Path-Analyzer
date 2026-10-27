@@ -40,12 +40,13 @@ def build_graph(data: Dict) -> nx.DiGraph:
             raise ValueError(f"Edge probability must be > 0 (got {p}) for edge {src}->{dst}")
         required = bool(edge["required"])
         weight = -math.log(p)  # negative log turns multiplication into addition
-        G.add_edge(
-            src,
-            dst,
-            p=p,
-            required=required,
-            weight=weight,
-        )
+        edge_attrs = {
+            "p": p,
+            "required": required,
+            "weight": weight,
+        }
+        if "vuln" in edge and edge["vuln"]:
+            edge_attrs["vuln"] = str(edge["vuln"])
+        G.add_edge(src, dst, **edge_attrs)
 
     return G

@@ -7,8 +7,6 @@ Smoke and unit tests for app.py:
 """
 
 import pathlib
-import pytest
-import pandas as pd
 from streamlit.testing.v1 import AppTest
 
 from app import _safe_str, _safe_int, _safe_float, _safe_bool
@@ -68,3 +66,14 @@ def test_analyze_and_materialize():
     assert "boundary_violations" in results
     assert pathlib.Path(results["report_path"]).is_file()
     assert pathlib.Path(results["graph_path"]).is_file()
+
+
+def test_display_analysis_dashboard_key_prefix():
+    """Verify that display_analysis_dashboard accepts key_prefix without error."""
+    from app import analyze_and_materialize, display_analysis_dashboard
+    from src.builders import generate_random_network
+    net_dict = generate_random_network(num_nodes=5, edge_density=0.4, seed=888)
+    results = analyze_and_materialize(net_dict)
+    # Ensure display_analysis_dashboard executes cleanly with distinct prefixes
+    display_analysis_dashboard(results, net_dict, key_prefix="test_prefix_1")
+    display_analysis_dashboard(results, net_dict, key_prefix="test_prefix_2")

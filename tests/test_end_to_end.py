@@ -92,3 +92,88 @@ def test_run_analysis_no_path(tmp_path: pathlib.Path):
     }
     with pytest.raises(ValueError, match="No attack path found"):
         run_analysis(input_path=disconnected_net, output_dir=tmp_path)
+
+
+def test_dijkstra_missing_source():
+    """Verify that dijkstra raises a clear ValueError if source is not in the graph."""
+    import networkx as nx
+    import pytest
+    from src.pathfinder import dijkstra
+    G = nx.DiGraph()
+    G.add_node("existing")
+    with pytest.raises(ValueError, match="Source node 'missing' not in graph"):
+        dijkstra(G, "missing")
+
+
+def test_bellman_ford_missing_source():
+    """Verify that bellman_ford raises a clear ValueError if source is not in the graph."""
+    import networkx as nx
+    import pytest
+    from src.pathfinder import bellman_ford
+    G = nx.DiGraph()
+    G.add_node("existing")
+    with pytest.raises(ValueError, match="Source node 'missing' not in graph"):
+        bellman_ford(G, "missing")
+
+
+def test_path_probability_non_edge():
+    """Verify that path_probability raises ValueError when consecutive nodes lack a connecting edge."""
+    import networkx as nx
+    import pytest
+    from src.pathfinder import path_probability
+    G = nx.DiGraph()
+    G.add_edge("a", "b", p=0.5)
+    with pytest.raises(ValueError, match="No edge in graph from 'b' to 'c'"):
+        path_probability(G, ["a", "b", "c"])
+
+
+def test_draw_graph_unknown_removed_edge(tmp_path: pathlib.Path):
+    """Verify that draw_graph safely ignores removed edges referencing nonexistent nodes without crashing."""
+    import networkx as nx
+    from src.visualize import draw_graph
+    G = nx.DiGraph()
+    G.add_edge("a", "b", p=0.5, weight=0.69)
+    out_img = tmp_path / "test_safe_removed.png"
+    # Edge ("x", "y") where neither node is in G
+    draw_graph(G, str(out_img), removed_edges=[("x", "y")])
+    assert out_img.is_file()
+
+
+def test_cli_subprocess_flag_and_positional(tmp_path: pathlib.Path):
+    """Verify main.py CLI execution via subprocess for both --input flag and positional syntax."""
+    import sys
+    import subprocess
+    repo_root = pathlib.Path(__file__).parents[1]
+    sample_file = repo_root / "data" / "sample_small.json"
+    main_script = repo_root / "main.py"
+
+    # 1. Flag invocation
+    out1 = tmp_path / "out_flag"
+    cmd1 = [sys.executable, str(main_script), "--input", str(sample_file), "--out", str(out1)]
+    res1 = subprocess.run(cmd1, capture_output=True, text=True)
+    assert res1.returncode == 0
+    assert "Analysis complete" in res1.stdout
+    assert (out1 / "report.md").is_file()
+
+    # 2. Positional invocation
+    out2 = tmp_path / "out_pos"
+    cmd2 = [sys.executable, str(main_script), str(sample_file), "--out", str(out2)]
+    res2 = subprocess.run(cmd2, capture_output=True, text=True)
+    assert res2.returncode == 0
+    assert "Analysis complete" in res2.stdout
+    assert (out2 / "report.md").is_file()
+
+
+def test_cli_conflicting_inputs():
+    """Verify that main.py CLI rejects conflicting positional and --input arguments."""
+    import sys
+    import subprocess
+    repo_root = pathlib.Path(__file__).parents[1]
+    main_script = repo_root / "main.py"
+    f1 = str(repo_root / "data" / "sample_small.json")
+    f2 = str(repo_root / "data" / "sample_large.json")
+
+    cmd = [sys.executable, str(main_script), f1, "--input", f2]
+    res = subprocess.run(cmd, capture_output=True, text=True)
+    assert res.returncode == 1
+    assert "Conflicting inputs provided" in res.stderr

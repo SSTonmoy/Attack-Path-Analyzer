@@ -15,11 +15,9 @@ import hashlib
 import io
 import json
 import pathlib
-import tempfile
 import traceback
 from typing import Any, Dict
 
-import networkx as nx
 import pandas as pd
 import streamlit as st
 
@@ -204,8 +202,11 @@ def analyze_and_materialize(network_dict: Dict[str, Any]) -> Dict[str, Any]:
 # -----------------------------------------------------------------------------
 # Helper: Render Analysis Dashboard
 # -----------------------------------------------------------------------------
-def display_analysis_dashboard(results: Dict[str, Any], network_data: Dict[str, Any]) -> None:
+def display_analysis_dashboard(results: Dict[str, Any], network_data: Dict[str, Any], key_prefix: str = "dash") -> None:
     """Render risk badge, metrics, network graph, attack paths, hardening plan, and segments."""
+    # Single graph construction for all dashboard components
+    G = build_graph(network_data)
+
     risk_info = results["risk"]
     band = risk_info.get("band", "Unknown")
     score = risk_info.get("score", 0.0)
@@ -255,10 +256,9 @@ def display_analysis_dashboard(results: Dict[str, Any], network_data: Dict[str, 
     if violations:
         st.warning(f"⚠️ **Security Boundary Violations ({len(violations)}):** Cross-zone attack links detected!")
         with st.expander(f"View {len(violations)} Boundary Violations"):
-            G_temp = build_graph(network_data)
             for u, v in violations:
-                z_u = G_temp.nodes[u].get("zone", "unknown")
-                z_v = G_temp.nodes[v].get("zone", "unknown")
+                z_u = G.nodes[u].get("zone", "unknown")
+                z_v = G.nodes[v].get("zone", "unknown")
                 st.markdown(f"- ⚠️ `{u}` (`{z_u}`) ➔ `{v}` (`{z_v}`)")
     else:
         st.success("✅ No cross-zone boundary violations detected.")
@@ -284,14 +284,13 @@ def display_analysis_dashboard(results: Dict[str, Any], network_data: Dict[str, 
                     data=img_file.read(),
                     file_name="attack_graph.png",
                     mime="image/png",
-                    key=f"dl_img_{id(results)}",
+                    key=f"{key_prefix}_dl_img",
                 )
         else:
             st.warning("Graph image was not found.")
 
     with col_right:
         st.subheader("🚶 Top Attack Paths")
-        G = build_graph(network_data)
         entry_node = network_data.get("entry", "internet")
         targets = network_data.get("targets", [])
 
@@ -319,13 +318,13 @@ def display_analysis_dashboard(results: Dict[str, Any], network_data: Dict[str, 
         st.subheader("📑 Report Artifacts")
         report_file_path = pathlib.Path(results["report_path"])
         if report_file_path.is_file():
-            report_text = report_file_path.read_text(encoding="utf-8")
+            report_text = report_file_path.read_text(encoding="utf-8-sig")
             st.download_button(
                 label="📥 Download report.md",
                 data=report_text,
                 file_name="report.md",
                 mime="text/markdown",
-                key=f"dl_rep_{id(results)}",
+                key=f"{key_prefix}_dl_rep",
             )
             with st.expander("Preview Markdown Report"):
                 st.code(report_text, language="markdown")
@@ -376,7 +375,7 @@ def execute_network_analysis(network_dict: Dict[str, Any], label: str = "custom"
                 key=f"dl_json_{label}",
             )
 
-            display_analysis_dashboard(results, network_dict)
+            display_analysis_dashboard(results, network_dict, key_prefix=label)
         except ValueError as val_err:
             st.error(f"❌ **Validation / Analysis Error:** {val_err}")
             with st.expander("Show Error Details"):
@@ -443,7 +442,7 @@ with tab_dashboard:
         with st.spinner("Running attack-path and risk analysis..."):
             try:
                 results = analyze_and_materialize(loaded_network)
-                display_analysis_dashboard(results, loaded_network)
+                display_analysis_dashboard(results, loaded_network, key_prefix="quick")
             except ValueError as val_err:
                 st.error(f"❌ **Validation / Analysis Error in Network JSON:** {val_err}")
                 with st.expander("Show Error Details"):

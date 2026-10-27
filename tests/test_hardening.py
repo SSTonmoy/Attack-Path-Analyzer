@@ -10,7 +10,6 @@ forms a spanning tree (|V|-1 edges for a connected graph).
 from pathlib import Path
 
 import networkx as nx
-import pytest
 
 from src.loader import load_json
 from src.graph_builder import build_graph

@@ -142,17 +142,29 @@ def run_analysis(
 if __name__ == "__main__":
     import sys
     import argparse
+
     parser = argparse.ArgumentParser(description="Attack Path Analyzer")
-    parser.add_argument("--input", default="data/sample_small.json", help="Input JSON file")
+    parser.add_argument("pos_input", nargs="?", default=None, help="Input JSON file (positional)")
+    parser.add_argument("--input", default=None, help="Input JSON file (flag)")
     parser.add_argument("--out", default="output", help="Output directory")
     args = parser.parse_args()
 
+    # Determine input path cleanly; detect conflicts if both positional and flag provided
+    if args.pos_input and args.input and args.pos_input != args.input:
+        print(
+            f"[ERROR] Conflicting inputs provided: positional '{args.pos_input}' vs --input '{args.input}'",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    effective_input = args.pos_input or args.input or "data/sample_small.json"
+
     try:
-        results = run_analysis(input_path=args.input, output_dir=args.out)
+        results = run_analysis(input_path=effective_input, output_dir=args.out)
         print("Analysis complete. Summary:")
         print(f"  Risk band: {results['risk']['band']}")
         print(f"  Report written to: {results['report_path']}")
         print(f"  Graph image: {results['graph_path']}")
-    except (ValueError, FileNotFoundError) as err:
+    except (ValueError, FileNotFoundError, OSError) as err:
         print(f"[ERROR] {err}", file=sys.stderr)
         sys.exit(1)

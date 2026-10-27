@@ -9,7 +9,6 @@ connected, so a single segment containing every node is expected.
 from pathlib import Path
 
 import networkx as nx
-import pytest
 
 from src.loader import load_json
 from src.graph_builder import build_graph
