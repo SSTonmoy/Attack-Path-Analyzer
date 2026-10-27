@@ -15,6 +15,7 @@ import io
 import json
 import pathlib
 import tempfile
+import traceback
 from typing import Any, Dict
 
 import networkx as nx
@@ -29,7 +30,7 @@ from src.builders import csv_to_network_dict, generate_random_network
 
 
 # -----------------------------------------------------------------------------
-# Page Configuration
+# Page Configuration & Environment
 # -----------------------------------------------------------------------------
 st.set_page_config(
     page_title="Attack-Path Analyzer",
@@ -40,6 +41,57 @@ st.set_page_config(
 project_root = pathlib.Path(__file__).parent.resolve()
 output_dir = project_root / "output"
 output_dir.mkdir(parents=True, exist_ok=True)
+
+# Helper for width compatibility across Streamlit versions (Item F)
+try:
+    from packaging.version import Version
+    _IS_MODERN_STREAMLIT = Version(st.__version__) >= Version("1.38.0")
+except Exception:
+    _IS_MODERN_STREAMLIT = True
+
+CONTAINER_WIDTH: Dict[str, Any] = {"width": "stretch"} if _IS_MODERN_STREAMLIT else {"use_container_width": True}
+
+
+# -----------------------------------------------------------------------------
+# Safe Cell-Reading Helpers (Item A)
+# -----------------------------------------------------------------------------
+def _safe_str(val: Any, default: str = "") -> str:
+    """Safely convert cell to clean string, preventing NaN stringification."""
+    if val is None or pd.isna(val):
+        return default
+    s = str(val).strip()
+    return default if s.lower() in ("nan", "none", "") else s
+
+
+def _safe_int(val: Any, default: int = 0) -> int:
+    """Safely convert cell to int, handling NaN, empty, or float representations."""
+    if val is None or pd.isna(val):
+        return default
+    try:
+        return int(float(val))
+    except (ValueError, TypeError):
+        return default
+
+
+def _safe_float(val: Any, default: float = 0.5) -> float:
+    """Safely convert cell to float in range (0, 1]."""
+    if val is None or pd.isna(val):
+        return default
+    try:
+        f = float(val)
+        return default if pd.isna(f) else f
+    except (ValueError, TypeError):
+        return default
+
+
+def _safe_bool(val: Any, default: bool = False) -> bool:
+    """Safely parse boolean cell, preventing bool(nan) from evaluating to True."""
+    if val is None or pd.isna(val):
+        return default
+    if isinstance(val, bool):
+        return val
+    s = str(val).strip().lower()
+    return s in ("true", "1", "yes", "t")
 
 
 # -----------------------------------------------------------------------------
@@ -53,7 +105,7 @@ def display_analysis_dashboard(results: Dict[str, Any], network_data: Dict[str, 
     prob = risk_info.get("prob", 0.0)
     criticality = risk_info.get("criticality", 0)
 
-    # 1. Risk Summary Header & Colored Badge
+    # 1. Risk Summary Header & Colored Badge (Item D: No misleading delta arrow, no duplicate score)
     st.subheader("🎯 Risk Assessment")
 
     badge_colors = {
@@ -71,17 +123,17 @@ def display_analysis_dashboard(results: Dict[str, Any], network_data: Dict[str, 
             <div style="background-color: {bg_color}; color: {text_color};
                         padding: 12px 20px; border-radius: 8px; font-weight: bold;
                         font-size: 1.4rem; text-align: center; margin-top: 8px;">
-                {band} Risk (Score: {score:.2f})
+                {band} Risk
             </div>
             """,
             unsafe_allow_html=True,
         )
     with col2:
-        st.metric("Attack Probability", f"{prob:.4f}", f"{prob * 100:.1f}%")
-    with col3:
-        st.metric("Target Criticality", f"{criticality} / 10")
-    with col4:
         st.metric("Risk Score", f"{score:.2f}")
+    with col3:
+        st.metric("Attack Probability", f"{prob * 100:.1f}%", help=f"Exact cumulative probability: {prob:.4f}")
+    with col4:
+        st.metric("Target Criticality", f"{criticality} / 10")
 
     st.divider()
 
@@ -95,7 +147,7 @@ def display_analysis_dashboard(results: Dict[str, Any], network_data: Dict[str, 
             st.image(
                 str(graph_img_path),
                 caption="Attack Graph: Path in Orange, Hardened Edges in Dashed Red",
-                use_container_width=True,
+                **CONTAINER_WIDTH,
             )
         else:
             st.warning("Graph image was not found.")
@@ -113,7 +165,7 @@ def display_analysis_dashboard(results: Dict[str, Any], network_data: Dict[str, 
                 for p in found_paths:
                     p_prob = path_probability(G, p)
                     all_attack_paths.append((p, p_prob, tgt))
-            except (nx.NetworkXNoPath, nx.NodeNotFound, ValueError):
+            except Exception:
                 continue
 
         all_attack_paths.sort(key=lambda x: x[1], reverse=True)
@@ -122,7 +174,7 @@ def display_analysis_dashboard(results: Dict[str, Any], network_data: Dict[str, 
             for rank, (path_nodes, p_prob, tgt) in enumerate(all_attack_paths, start=1):
                 path_str = " ➔ ".join(f"`{node}`" for node in path_nodes)
                 st.markdown(
-                    f"**#{rank}** ({p_prob:.4f} / {p_prob*100:.1f}%) : {path_str}"
+                    f"**#{rank}** ({p_prob*100:.1f}% / p={p_prob:.4f}) : {path_str}"
                 )
         else:
             st.info("No attack path found from entry to target asset(s).")
@@ -173,33 +225,29 @@ def display_analysis_dashboard(results: Dict[str, Any], network_data: Dict[str, 
 
 
 def execute_network_analysis(network_dict: Dict[str, Any], label: str = "custom") -> None:
-    """Validate network dictionary, write to temp JSON, run pipeline, and display dashboard."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False, encoding="utf-8") as f:
-        json.dump(network_dict, f, indent=2)
-        temp_path = pathlib.Path(f.name)
+    """Validate network dictionary directly, run pipeline with spinner, and display dashboard."""
+    with st.spinner("Analyzing attack paths, risk scores, and network segments..."):
+        try:
+            results = run_analysis(input_path=network_dict, output_dir=str(output_dir))
+            st.success("✅ Analysis completed successfully!")
 
-    try:
-        # Validate through loader
-        validated = load_json(str(temp_path))
-        results = run_analysis(input_path=str(temp_path), output_dir=str(output_dir))
-        st.success("✅ Analysis completed successfully!")
+            st.download_button(
+                label="💾 Download Network JSON",
+                data=json.dumps(network_dict, indent=2),
+                file_name=f"network_{label}.json",
+                mime="application/json",
+                key=f"dl_json_{label}",
+            )
 
-        # Download JSON button
-        st.download_button(
-            label="💾 Download Network JSON",
-            data=json.dumps(network_dict, indent=2),
-            file_name=f"network_{label}.json",
-            mime="application/json",
-            key=f"dl_json_{label}",
-        )
-
-        display_analysis_dashboard(results, validated)
-    except ValueError as val_err:
-        st.error(f"❌ **Validation Error:** {val_err}")
-    except Exception as exc:
-        st.error(f"❌ **Analysis Error:** {exc}")
-    finally:
-        temp_path.unlink(missing_ok=True)
+            display_analysis_dashboard(results, network_dict)
+        except ValueError as val_err:
+            st.error(f"❌ **Validation / Analysis Error:** {val_err}")
+            with st.expander("Show Error Details"):
+                st.code(traceback.format_exc(), language="python")
+        except Exception as exc:
+            st.error(f"❌ **Unexpected Error during Analysis:** {exc}")
+            with st.expander("Show Full Traceback"):
+                st.code(traceback.format_exc(), language="python")
 
 
 # -----------------------------------------------------------------------------
@@ -217,27 +265,28 @@ tab_dashboard, tab_builder, tab_csv, tab_random = st.tabs([
 
 
 # =============================================================================
-# TAB 1: Quick Analysis (Sidebar Sources)
+# TAB 1: Quick Analysis (Scoped to Tab 1 - Item E)
 # =============================================================================
 with tab_dashboard:
-    st.sidebar.header("📁 Quick Input Source")
-    input_option = st.sidebar.radio(
-        "Choose input source:",
-        options=["Sample small", "Sample large", "Upload JSON"],
+    st.subheader("📁 Select Input Dataset")
+    input_option = st.radio(
+        "Choose topology source for quick analysis:",
+        options=["Sample small (7 nodes)", "Sample large (10 nodes)", "Upload Custom JSON"],
         index=0,
+        horizontal=True,
     )
 
     selected_input: pathlib.Path | None = None
     temp_clean: pathlib.Path | None = None
 
-    if input_option == "Sample small":
+    if input_option == "Sample small (7 nodes)":
         selected_input = project_root / "data" / "sample_small.json"
-        st.sidebar.caption("Using bundled `sample_small.json` (7 nodes, 9 edges).")
-    elif input_option == "Sample large":
+        st.caption("Bundled network: 7 nodes, 9 edges, target: `db01`.")
+    elif input_option == "Sample large (10 nodes)":
         selected_input = project_root / "data" / "sample_large.json"
-        st.sidebar.caption("Using bundled `sample_large.json` (10 nodes, 12 edges).")
+        st.caption("Bundled network: 10 nodes, 12 edges, targets: `db-main`, `domain-ctrl`.")
     else:
-        uploaded = st.sidebar.file_uploader(
+        uploaded = st.file_uploader(
             "Upload network description JSON:",
             type=["json"],
             key="tab1_upload",
@@ -249,26 +298,31 @@ with tab_dashboard:
             tfile.close()
             selected_input = pathlib.Path(tfile.name)
             temp_clean = selected_input
-            st.sidebar.success(f"Loaded: {uploaded.name}")
+            st.success(f"Loaded: {uploaded.name}")
         else:
-            st.info("👈 Please upload a JSON network configuration in the sidebar.")
+            st.info("👆 Please upload a JSON network configuration above.")
 
     if selected_input and selected_input.exists():
-        try:
-            validated_data = load_json(str(selected_input))
-            results = run_analysis(input_path=str(selected_input), output_dir=str(output_dir))
-            display_analysis_dashboard(results, validated_data)
-        except ValueError as val_err:
-            st.error(f"❌ **Validation Error in Network JSON:** {val_err}")
-        except Exception as exc:
-            st.error(f"❌ **Unexpected Error during Analysis:** {exc}")
-        finally:
-            if temp_clean and temp_clean.is_file():
-                temp_clean.unlink(missing_ok=True)
+        with st.spinner("Running attack-path and risk analysis..."):
+            try:
+                validated_data = load_json(str(selected_input))
+                results = run_analysis(input_path=str(selected_input), output_dir=str(output_dir))
+                display_analysis_dashboard(results, validated_data)
+            except ValueError as val_err:
+                st.error(f"❌ **Validation / Analysis Error in Network JSON:** {val_err}")
+                with st.expander("Show Error Details"):
+                    st.code(traceback.format_exc(), language="python")
+            except Exception as exc:
+                st.error(f"❌ **Unexpected Error during Analysis:** {exc}")
+                with st.expander("Show Full Traceback"):
+                    st.code(traceback.format_exc(), language="python")
+            finally:
+                if temp_clean and temp_clean.is_file():
+                    temp_clean.unlink(missing_ok=True)
 
 
 # =============================================================================
-# TAB 2: Build Network (Spreadsheet Editor via st.data_editor)
+# TAB 2: Build Network (Spreadsheet Editor via st.data_editor - Item A & F)
 # =============================================================================
 with tab_builder:
     st.subheader("🛠️ Interactive Network Builder")
@@ -318,13 +372,13 @@ with tab_builder:
                 required=True,
             ),
         },
-        use_container_width=True,
         key="nodes_editor",
+        **CONTAINER_WIDTH,
     )
 
     # Collect available node IDs for edge dropdowns
     available_nodes = [
-        str(nid).strip() for nid in edited_nodes["id"].dropna().tolist() if str(nid).strip()
+        _safe_str(nid) for nid in edited_nodes["id"].dropna().tolist() if _safe_str(nid)
     ]
 
     st.markdown("#### 2. Edges Table")
@@ -353,14 +407,13 @@ with tab_builder:
             ),
             "required": st.column_config.CheckboxColumn("Required Link?", default=False),
         },
-        use_container_width=True,
         key="edges_editor",
+        **CONTAINER_WIDTH,
     )
 
     st.markdown("#### 3. Entry & Target Configuration")
     cfg_col1, cfg_col2 = st.columns(2)
     with cfg_col1:
-        entry_idx = 0 if "internet" in available_nodes else 0
         default_entry = "internet" if "internet" in available_nodes else (available_nodes[0] if available_nodes else "")
         selected_entry = st.selectbox(
             "Select Entry Point Node:",
@@ -383,27 +436,31 @@ with tab_builder:
         elif not selected_targets:
             st.error("Please specify at least one target asset.")
         else:
-            # Construct dictionary
+            # Construct dictionary safely (Item A)
             built_nodes = []
             for _, r in edited_nodes.iterrows():
-                if pd.notna(r.get("id")) and str(r["id"]).strip():
+                nid = _safe_str(r.get("id"))
+                if nid:
                     built_nodes.append({
-                        "id": str(r["id"]).strip(),
-                        "zone": str(r.get("zone", "internal")).strip(),
-                        "criticality": int(r.get("criticality", 0)),
+                        "id": nid,
+                        "zone": _safe_str(r.get("zone"), "internal"),
+                        "criticality": _safe_int(r.get("criticality"), 0),
                     })
 
             built_edges = []
             for _, r in edited_edges.iterrows():
-                if pd.notna(r.get("src")) and pd.notna(r.get("dst")):
+                src = _safe_str(r.get("src"))
+                dst = _safe_str(r.get("dst"))
+                if src and dst:
                     e_dict = {
-                        "src": str(r["src"]).strip(),
-                        "dst": str(r["dst"]).strip(),
-                        "p": float(r.get("p", 0.5)),
-                        "required": bool(r.get("required", False)),
+                        "src": src,
+                        "dst": dst,
+                        "p": _safe_float(r.get("p"), 0.5),
+                        "required": _safe_bool(r.get("required"), False),
                     }
-                    if pd.notna(r.get("vuln")) and str(r["vuln"]).strip():
-                        e_dict["vuln"] = str(r["vuln"]).strip()
+                    vuln = _safe_str(r.get("vuln"))
+                    if vuln:
+                        e_dict["vuln"] = vuln
                     built_edges.append(e_dict)
 
             built_network = {
@@ -417,7 +474,7 @@ with tab_builder:
 
 
 # =============================================================================
-# TAB 3: CSV Import (nodes.csv + edges.csv)
+# TAB 3: CSV Import (nodes.csv + edges.csv - Item B)
 # =============================================================================
 with tab_csv:
     st.subheader("📄 Import Network from CSV")
@@ -431,37 +488,53 @@ with tab_csv:
 
     if csv_nodes_file and csv_edges_file:
         try:
-            nodes_text = csv_nodes_file.getvalue().decode("utf-8")
-            edges_text = csv_edges_file.getvalue().decode("utf-8")
+            # Decode with utf-8-sig to automatically strip Excel BOMs (Item B)
+            nodes_text = csv_nodes_file.getvalue().decode("utf-8-sig")
+            edges_text = csv_edges_file.getvalue().decode("utf-8-sig")
 
             nodes_preview = pd.read_csv(io.StringIO(nodes_text))
             edges_preview = pd.read_csv(io.StringIO(edges_text))
 
-            st.markdown("##### Preview Nodes CSV")
-            st.dataframe(nodes_preview.head(5), use_container_width=True)
+            if nodes_preview.empty:
+                st.error("Uploaded `nodes.csv` is empty.")
+            elif "id" not in nodes_preview.columns:
+                st.error("Uploaded `nodes.csv` must contain an 'id' column.")
+            else:
+                st.markdown("##### Preview Nodes CSV")
+                st.dataframe(nodes_preview.head(5), **CONTAINER_WIDTH)
 
-            st.markdown("##### Preview Edges CSV")
-            st.dataframe(edges_preview.head(5), use_container_width=True)
+                st.markdown("##### Preview Edges CSV")
+                st.dataframe(edges_preview.head(5), **CONTAINER_WIDTH)
 
-            csv_node_ids = nodes_preview["id"].astype(str).str.strip().tolist()
+                csv_node_ids = [
+                    _safe_str(nid)
+                    for nid in nodes_preview["id"].dropna().tolist()
+                    if _safe_str(nid)
+                ]
 
-            csv_col_a, csv_col_b = st.columns(2)
-            with csv_col_a:
-                csv_entry = st.selectbox("Entry Point:", options=csv_node_ids, index=0)
-            with csv_col_b:
-                csv_targets = st.multiselect("Targets:", options=csv_node_ids, default=[csv_node_ids[-1]])
+                if not csv_node_ids:
+                    st.error("No valid node IDs found in `nodes.csv`.")
+                else:
+                    csv_col_a, csv_col_b = st.columns(2)
+                    with csv_col_a:
+                        csv_entry = st.selectbox("Entry Point:", options=csv_node_ids, index=0)
+                    with csv_col_b:
+                        default_target_idx = [csv_node_ids[-1]] if csv_node_ids else []
+                        csv_targets = st.multiselect("Targets:", options=csv_node_ids, default=default_target_idx)
 
-            if st.button("🚀 Import CSV & Run Analysis", type="primary", key="btn_run_csv"):
-                converted_network = csv_to_network_dict(
-                    nodes_csv=nodes_text,
-                    edges_csv=edges_text,
-                    entry=csv_entry,
-                    targets=csv_targets,
-                )
-                execute_network_analysis(converted_network, label="csv_imported")
+                    if st.button("🚀 Import CSV & Run Analysis", type="primary", key="btn_run_csv"):
+                        converted_network = csv_to_network_dict(
+                            nodes_csv=nodes_text,
+                            edges_csv=edges_text,
+                            entry=csv_entry,
+                            targets=csv_targets,
+                        )
+                        execute_network_analysis(converted_network, label="csv_imported")
 
         except Exception as e:
             st.error(f"❌ Error parsing CSV files: {e}")
+            with st.expander("Show Error Details"):
+                st.code(traceback.format_exc(), language="python")
     else:
         st.info("Please upload both `nodes.csv` and `edges.csv` to proceed.")
 
