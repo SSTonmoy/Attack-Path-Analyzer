@@ -11,6 +11,7 @@ Provides an interactive dashboard for network security analysis:
 
 from __future__ import annotations
 
+import hashlib
 import io
 import json
 import pathlib
@@ -22,10 +23,14 @@ import networkx as nx
 import pandas as pd
 import streamlit as st
 
-from main import run_analysis
-from src.loader import load_json
+from src.loader import load_json, validate_network
 from src.graph_builder import build_graph
-from src.pathfinder import top_k_paths, path_probability
+from src.pathfinder import dijkstra, top_k_paths, path_probability
+from src.risk import score_path
+from src.hardening import harden
+from src.segmentation import find_segments, boundary_violations, blast_radius
+from src.visualize import draw_graph
+from src.report import build_report
 from src.builders import csv_to_network_dict, generate_random_network
 
 
@@ -95,17 +100,122 @@ def _safe_bool(val: Any, default: bool = False) -> bool:
 
 
 # -----------------------------------------------------------------------------
+# Cached Analysis & Per-Network Artifact Materialization (Item C)
+# -----------------------------------------------------------------------------
+@st.cache_data
+def _compute_analysis_data(network_json_str: str) -> Dict[str, Any]:
+    """Pure analysis computation cached in memory (no disk writes inside)."""
+    data = json.loads(network_json_str)
+    validated = validate_network(data)
+    G = build_graph(validated)
+
+    entry = validated["entry"]
+    targets = validated.get("targets", [])
+    if not targets:
+        raise ValueError("Network specification must contain at least one target.")
+
+    best_path = None
+    best_risk = None
+    for tgt in targets:
+        try:
+            cand_path = dijkstra(G, source=entry, target=tgt)
+            if isinstance(cand_path, list):
+                cand_risk = score_path(G, cand_path)
+                if best_risk is None or cand_risk["score"] > best_risk["score"]:
+                    best_risk = cand_risk
+                    best_path = cand_path
+        except (ValueError, KeyError):
+            continue
+
+    if best_path is None or best_risk is None:
+        raise ValueError(
+            f"No attack path found from entry '{entry}' to target(s): {', '.join(targets)}"
+        )
+
+    hardening_result = harden(G, entry=entry, targets=targets)
+    segments = find_segments(G)
+    violations = boundary_violations(G)
+    radius = blast_radius(G, entry=entry)
+
+    return {
+        "risk": best_risk,
+        "hardening": hardening_result,
+        "segments": segments,
+        "boundary_violations": violations,
+        "blast_radius": list(radius),  # serializable for st.cache_data
+        "best_path": best_path,
+        "network_data": validated,
+    }
+
+
+def analyze_and_materialize(network_dict: Dict[str, Any]) -> Dict[str, Any]:
+    """Run cached analysis and write artifacts into a per-network hash directory."""
+    net_json = json.dumps(network_dict, sort_keys=True)
+    net_hash = hashlib.sha256(net_json.encode("utf-8")).hexdigest()[:12]
+    net_dir = output_dir / f"net_{net_hash}"
+    net_dir.mkdir(parents=True, exist_ok=True)
+
+    # 1. Pure cached computation
+    calc_results = _compute_analysis_data(net_json)
+
+    # 2. Materialize files outside cached function
+    report_path = net_dir / "report.md"
+    graph_path = net_dir / "graph.png"
+
+    validated = calc_results["network_data"]
+    G = build_graph(validated)
+    best_path = calc_results["best_path"]
+    hardening = calc_results["hardening"]
+    radius_set = set(calc_results["blast_radius"])
+    violations = calc_results["boundary_violations"]
+
+    if not report_path.is_file():
+        build_report(
+            {
+                "risk_summary": calc_results["risk"],
+                "hardening_plan": hardening,
+                "segments": calc_results["segments"],
+                "boundary_violations": violations,
+                "blast_radius": radius_set,
+            },
+            str(report_path),
+        )
+
+    if not graph_path.is_file():
+        draw_graph(
+            G,
+            out_path=str(graph_path),
+            highlight_path=best_path,
+            removed_edges=hardening.get("removed"),
+        )
+
+    return {
+        "risk": calc_results["risk"],
+        "hardening": hardening,
+        "segments": calc_results["segments"],
+        "boundary_violations": violations,
+        "blast_radius": radius_set,
+        "best_path": best_path,
+        "report_path": str(report_path),
+        "graph_path": str(graph_path),
+    }
+
+
+# -----------------------------------------------------------------------------
 # Helper: Render Analysis Dashboard
 # -----------------------------------------------------------------------------
 def display_analysis_dashboard(results: Dict[str, Any], network_data: Dict[str, Any]) -> None:
-    """Render the risk badge, network graph, top attack paths, hardening plan, and segments."""
+    """Render risk badge, metrics, network graph, attack paths, hardening plan, and segments."""
     risk_info = results["risk"]
     band = risk_info.get("band", "Unknown")
     score = risk_info.get("score", 0.0)
     prob = risk_info.get("prob", 0.0)
     criticality = risk_info.get("criticality", 0)
+    blast_nodes = results.get("blast_radius", set())
+    total_nodes = len(network_data.get("nodes", []))
+    violations = results.get("boundary_violations", [])
 
-    # 1. Risk Summary Header & Colored Badge (Item D: No misleading delta arrow, no duplicate score)
+    # 1. Risk Summary Header & Colored Badge (Blast radius metric added)
     st.subheader("🎯 Risk Assessment")
 
     badge_colors = {
@@ -116,13 +226,13 @@ def display_analysis_dashboard(results: Dict[str, Any], network_data: Dict[str, 
     }
     bg_color, text_color = badge_colors.get(band, ("#6c757d", "white"))
 
-    col1, col2, col3, col4 = st.columns([2, 1, 1, 1])
+    col1, col2, col3, col4, col5 = st.columns([1.5, 1, 1, 1, 1.2])
     with col1:
         st.markdown(
             f"""
             <div style="background-color: {bg_color}; color: {text_color};
-                        padding: 12px 20px; border-radius: 8px; font-weight: bold;
-                        font-size: 1.4rem; text-align: center; margin-top: 8px;">
+                        padding: 12px 16px; border-radius: 8px; font-weight: bold;
+                        font-size: 1.3rem; text-align: center; margin-top: 6px;">
                 {band} Risk
             </div>
             """,
@@ -134,6 +244,24 @@ def display_analysis_dashboard(results: Dict[str, Any], network_data: Dict[str, 
         st.metric("Attack Probability", f"{prob * 100:.1f}%", help=f"Exact cumulative probability: {prob:.4f}")
     with col4:
         st.metric("Target Criticality", f"{criticality} / 10")
+    with col5:
+        st.metric(
+            "Blast Radius",
+            f"{len(blast_nodes)} / {total_nodes} nodes",
+            help=f"Nodes reachable by attacker from entry point '{network_data.get('entry', 'internet')}'",
+        )
+
+    # Boundary Violations Warning
+    if violations:
+        st.warning(f"⚠️ **Security Boundary Violations ({len(violations)}):** Cross-zone attack links detected!")
+        with st.expander(f"View {len(violations)} Boundary Violations"):
+            G_temp = build_graph(network_data)
+            for u, v in violations:
+                z_u = G_temp.nodes[u].get("zone", "unknown")
+                z_v = G_temp.nodes[v].get("zone", "unknown")
+                st.markdown(f"- ⚠️ `{u}` (`{z_u}`) ➔ `{v}` (`{z_v}`)")
+    else:
+        st.success("✅ No cross-zone boundary violations detected.")
 
     st.divider()
 
@@ -149,6 +277,15 @@ def display_analysis_dashboard(results: Dict[str, Any], network_data: Dict[str, 
                 caption="Attack Graph: Path in Orange, Hardened Edges in Dashed Red",
                 **CONTAINER_WIDTH,
             )
+            # Download button for graph.png
+            with open(graph_img_path, "rb") as img_file:
+                st.download_button(
+                    label="📥 Download graph.png",
+                    data=img_file.read(),
+                    file_name="attack_graph.png",
+                    mime="image/png",
+                    key=f"dl_img_{id(results)}",
+                )
         else:
             st.warning("Graph image was not found.")
 
@@ -228,7 +365,7 @@ def execute_network_analysis(network_dict: Dict[str, Any], label: str = "custom"
     """Validate network dictionary directly, run pipeline with spinner, and display dashboard."""
     with st.spinner("Analyzing attack paths, risk scores, and network segments..."):
         try:
-            results = run_analysis(input_path=network_dict, output_dir=str(output_dir))
+            results = analyze_and_materialize(network_dict)
             st.success("✅ Analysis completed successfully!")
 
             st.download_button(
@@ -276,14 +413,15 @@ with tab_dashboard:
         horizontal=True,
     )
 
-    selected_input: pathlib.Path | None = None
-    temp_clean: pathlib.Path | None = None
+    loaded_network: Dict[str, Any] | None = None
 
     if input_option == "Sample small (7 nodes)":
-        selected_input = project_root / "data" / "sample_small.json"
+        sample_path = project_root / "data" / "sample_small.json"
+        loaded_network = load_json(str(sample_path))
         st.caption("Bundled network: 7 nodes, 9 edges, target: `db01`.")
     elif input_option == "Sample large (10 nodes)":
-        selected_input = project_root / "data" / "sample_large.json"
+        sample_path = project_root / "data" / "sample_large.json"
+        loaded_network = load_json(str(sample_path))
         st.caption("Bundled network: 10 nodes, 12 edges, targets: `db-main`, `domain-ctrl`.")
     else:
         uploaded = st.file_uploader(
@@ -292,22 +430,20 @@ with tab_dashboard:
             key="tab1_upload",
         )
         if uploaded is not None:
-            tfile = tempfile.NamedTemporaryFile(mode="wb", suffix=".json", delete=False)
-            tfile.write(uploaded.getvalue())
-            tfile.flush()
-            tfile.close()
-            selected_input = pathlib.Path(tfile.name)
-            temp_clean = selected_input
-            st.success(f"Loaded: {uploaded.name}")
+            try:
+                raw_dict = json.loads(uploaded.getvalue().decode("utf-8-sig"))
+                loaded_network = validate_network(raw_dict)
+                st.success(f"Loaded: {uploaded.name}")
+            except Exception as e:
+                st.error(f"❌ Failed to parse uploaded JSON: {e}")
         else:
             st.info("👆 Please upload a JSON network configuration above.")
 
-    if selected_input and selected_input.exists():
+    if loaded_network is not None:
         with st.spinner("Running attack-path and risk analysis..."):
             try:
-                validated_data = load_json(str(selected_input))
-                results = run_analysis(input_path=str(selected_input), output_dir=str(output_dir))
-                display_analysis_dashboard(results, validated_data)
+                results = analyze_and_materialize(loaded_network)
+                display_analysis_dashboard(results, loaded_network)
             except ValueError as val_err:
                 st.error(f"❌ **Validation / Analysis Error in Network JSON:** {val_err}")
                 with st.expander("Show Error Details"):
@@ -316,9 +452,6 @@ with tab_dashboard:
                 st.error(f"❌ **Unexpected Error during Analysis:** {exc}")
                 with st.expander("Show Full Traceback"):
                     st.code(traceback.format_exc(), language="python")
-            finally:
-                if temp_clean and temp_clean.is_file():
-                    temp_clean.unlink(missing_ok=True)
 
 
 # =============================================================================

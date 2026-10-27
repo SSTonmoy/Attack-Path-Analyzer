@@ -55,3 +55,16 @@ def test_app_smoke_apptest():
     at = AppTest.from_file(str(app_path.resolve()))
     at.run(timeout=20)
     assert len(at.exception) == 0, [e.value for e in at.exception]
+
+
+def test_analyze_and_materialize():
+    """Verify that analyze_and_materialize generates per-network artifacts cleanly."""
+    from app import analyze_and_materialize
+    from src.builders import generate_random_network
+    net_dict = generate_random_network(num_nodes=5, edge_density=0.4, seed=777)
+    results = analyze_and_materialize(net_dict)
+    assert "risk" in results
+    assert "blast_radius" in results
+    assert "boundary_violations" in results
+    assert pathlib.Path(results["report_path"]).is_file()
+    assert pathlib.Path(results["graph_path"]).is_file()
