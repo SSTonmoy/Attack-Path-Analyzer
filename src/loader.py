@@ -90,28 +90,21 @@ def _validate_entry_and_targets(entry: Any, targets: Any, node_ids: set) -> None
             _error(f"Target node '{tgt}' does not exist in the node list.")
 
 
-def load_json(path: str) -> dict:
-    """Load a network description JSON file and validate its contents.
+def validate_network(data: Any) -> dict:
+    """Validate an in-memory network specification dictionary.
 
     Parameters
     ----------
-    path: str
-        Path to the JSON file.
+    data: dict
+        Dictionary containing 'nodes', 'edges', 'entry', and 'targets'.
 
     Returns
     -------
     dict
-        The parsed JSON dictionary *exactly* as it appears in the file.
-        Any validation problem raises ``ValueError`` with a clear one‑line
-        message, which the CLI can surface to the user.
+        The validated dictionary.
     """
-    p = pathlib.Path(path)
-    if not p.is_file():
-        _error(f"File not found: {path}")
-    try:
-        data = json.loads(p.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as exc:
-        _error(f"Invalid JSON syntax: {exc.msg}")
+    if not isinstance(data, dict):
+        _error("Network data must be a dictionary.")
 
     # Top‑level keys that must exist
     for key in ("nodes", "edges", "entry", "targets"):
@@ -135,3 +128,29 @@ def load_json(path: str) -> dict:
     _validate_entry_and_targets(data["entry"], data["targets"], node_ids)
 
     return data
+
+
+def load_json(path: str) -> dict:
+    """Load a network description JSON file and validate its contents.
+
+    Parameters
+    ----------
+    path: str
+        Path to the JSON file.
+
+    Returns
+    -------
+    dict
+        The parsed JSON dictionary *exactly* as it appears in the file.
+        Any validation problem raises ``ValueError`` with a clear one‑line
+        message, which the CLI can surface to the user.
+    """
+    p = pathlib.Path(path)
+    if not p.is_file():
+        _error(f"File not found: {path}")
+    try:
+        data = json.loads(p.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        _error(f"Invalid JSON syntax: {exc.msg}")
+
+    return validate_network(data)

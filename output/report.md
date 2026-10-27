@@ -25,3 +25,15 @@
 
 - **0**:
   - `admin-pc`, `app01`, `db01`, `file01`, `internet`, `mail01`, `web01`
+
+## Boundary Violations
+
+- `internet` ➔ `web01`
+- `internet` ➔ `mail01`
+- `web01` ➔ `app01`
+- `web01` ➔ `db01`
+- `mail01` ➔ `admin-pc`
+
+## Blast Radius
+
+- `admin-pc`, `app01`, `db01`, `file01`, `internet`, `mail01`, `web01`
